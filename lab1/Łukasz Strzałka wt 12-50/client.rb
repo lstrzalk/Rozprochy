@@ -1,5 +1,6 @@
 require 'socket'
 require 'ipaddr'
+require 'thread'
 require_relative 'messenge'
 class Client
 	def initialize(server, nickname)
@@ -10,6 +11,7 @@ class Client
 		@responseTCP = nil
 		@responseUDP = nil
 		@udpMulticast = nil
+		@semaphore = Mutex.new
 		@messenge = Messenge.new(@id,@nickname)
 		@udpSocket = UDPSocket.new
 		@udpMulticastSender = nil
@@ -78,19 +80,7 @@ class Client
 			loop do
 				data, client = @udpSocket.recvfrom(1024)
 				msg = @messenge.decode(data)
-				print "\r"
-				(@nickname.length + 3).times do
-					print " "
-				end
-				printable = msg[:body]
-				if  /^-M/=~ printable 
-					puts "\r@#{msg[:nickname]}/> #{printable.split(/^-M\s/)[1]}"
-				elsif /^-N(\s-\w+)+\s+#\s+/ =~ printable
-					puts "\r@#{msg[:nickname]}/> #{printable.split(/^-N(\s-\w+)+\s+#\s+/)[2]}"
-				else
-					puts "\r@#{msg[:nickname]}/> #{printable}"
-				end
-				print "@#{@nickname}/> "
+				printMessenge(msg)
 			end
 		end
 	end
@@ -100,13 +90,7 @@ class Client
 				data, client = @udpMulticastSocket.recvfrom(1024)
 				msg = @messenge.decode(data)
 				unless msg[:id].to_i == @id
-					printable = msg[:body]
-					(@nickname.length + 3).times do
-						print " "
-					end
-					print "\r"
-					puts "\r@#{msg[:nickname]}/> #{printable.split(/^-O\s/)[1]}"
-					print "@#{@nickname}/> "
+					printMessenge(msg)
 				end
 			end
 		end
@@ -146,18 +130,40 @@ class Client
 		end
 	end
 	def help
-		return "-M messange text => Sending UDP to all Users\n"
-				+"-N -user1 -user2 ... -userN \# messenge text => Sending UDP to selected Users\n"
-				+"-O messenge text => Sending UDP Mutlicast\n"
-				+"-[M-O] -r filename => Sending file to Users as above\n"
-				+"text messenge => Sending TCP to all Users"
+		return "-M messange text => Sending UDP to all Users\n"+
+				"-N -user1 -user2 ... -userN \# messenge text => Sending UDP to selected Users\n"+
+				"-O messenge text => Sending UDP Mutlicast\n"+
+				"-[M-O] -r filename => Sending file to Users as above\n"+
+				"text messenge => Sending TCP to all Users"
 	end
 	def readFile(name)
         splitted = name.split(/\s-r\s/)
-		art = IO.readlines(splitted[1])
-        art.map! do |x|
-            x = "#{splitted[0]} #{x}"
-        end
-        return art
+		begin
+			art = IO.readlines(splitted[1])
+			art.map! do |x|
+				x = "#{splitted[0]} #{x}"
+			end
+			puts "File not found!"
+			return art
+		rescue
+			return -1
+		end
+	end
+	def printMessenge(msg)
+		@semaphore.synchronize do
+			print "\r"
+			(@nickname.length + 3).times do
+				print " "
+			end
+			printable = msg[:body]
+			if  /^-[M|O]/=~ printable 
+				puts "\r@#{msg[:nickname]}/> #{printable.split(/^-[M|O]\s/)[1]}"
+			elsif /^-N(\s-\w+)+\s+#\s+/ =~ printable
+				puts "\r@#{msg[:nickname]}/> #{printable.split(/^-N(\s-\w+)+\s+#\s+/)[2]}"
+			else
+				puts "\r@#{msg[:nickname]}/> #{printable}"
+			end
+			print "@#{@nickname}/> "
+		end
 	end
 end

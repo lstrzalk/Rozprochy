@@ -1,5 +1,6 @@
 require 'socket'
 require 'ipaddr'
+require 'thread'
 require_relative 'messenge'
 
 class Server
@@ -10,6 +11,8 @@ class Server
 		@clients = Hash.new
 		@udpSocket = UDPSocket.new
 		@udpSocket.bind(ip, port)
+		@semaphore = Mutex.new
+		@clientsSemaphore = Mutex.new
 		@udpList = nil
 		@tcpList = nil
 		#@udpMulticast = nil
@@ -33,7 +36,9 @@ class Server
 					if req[:flag].to_i == 0
 						if !@clients[req[:nickname].to_sym] and @actualHostsAmount <= @maxHostsAmount
 							kill = true
-							@clients[req[:nickname].to_sym] = client
+							@clientsSemaphore.synchronize do
+								@clients[req[:nickname].to_sym] = client
+							end
 							@actualHostsAmount = @actualHostsAmount + 1
 							puts "#{req[:nickname]} is registered with id #{client.peeraddr[1]}"
 							client.puts @messenge.encode(client.peeraddr[1].to_s,0)
@@ -56,13 +61,15 @@ class Server
 	def listen_UDPmessenges(nickname)
 		@udpList = Thread.new do
 			loop do
-				data, client = @udpSocket.recvfrom(1024)
-				decoded = @messenge.decode(data)
-				msg = decoded[:body]
-				if /^-M/ =~ msg 
-					broadcast(data, @clients)
-				elsif /^-N/ =~ msg
-					multicast(data, @clients)
+				@semaphore.synchronize do
+					data, client = @udpSocket.recvfrom(1024)
+					decoded = @messenge.decode(data)
+					msg = decoded[:body]
+					if /^-M/ =~ msg 
+						broadcast(data, @clients)
+					elsif /^-N/ =~ msg
+						multicast(data, @clients)
+					end
 				end
 			end
 		end

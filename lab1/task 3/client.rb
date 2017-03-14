@@ -143,9 +143,9 @@ class Client
 			art.map! do |x|
 				x = "#{splitted[0]} #{x}"
 			end
-			puts "File not found!"
 			return art
 		rescue
+			puts "File not found!"
 			return -1
 		end
 	end

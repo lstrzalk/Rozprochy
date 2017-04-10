@@ -1,0 +1,10 @@
+{application,amqp,
+             [{description,"Idiomatic Elixir client for RabbitMQ.\n"},
+              {modules,['Elixir.AMQP','Elixir.AMQP.Basic',
+                        'Elixir.AMQP.Channel','Elixir.AMQP.Confirm',
+                        'Elixir.AMQP.Connection','Elixir.AMQP.Core',
+                        'Elixir.AMQP.Exchange','Elixir.AMQP.Queue',
+                        'Elixir.AMQP.Utils']},
+              {registered,[]},
+              {vsn,"0.2.0"},
+              {applications,[kernel,stdlib,elixir,logger,amqp_client]}]}.
